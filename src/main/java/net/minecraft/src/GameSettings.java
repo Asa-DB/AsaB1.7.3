@@ -16,9 +16,13 @@ public class GameSettings {
 	private static final String[] DIFFICULTIES = new String[]{"options.difficulty.peaceful", "options.difficulty.easy", "options.difficulty.normal", "options.difficulty.hard"};
 	private static final String[] GUISCALES = new String[]{"options.guiScale.auto", "options.guiScale.small", "options.guiScale.normal", "options.guiScale.large"};
 	private static final String[] LIMIT_FRAMERATES = new String[]{"performance.max", "performance.balanced", "performance.powersaver"};
+	// Actual target FPS for each performance mode above. "max" is still capped
+	// (not left unbounded) because an uncapped browser render loop pegs the CPU
+	// core the tab runs on and starves the browser's own event loop, which is
+	// what causes the stutter/input-lag complaints (see GitHub issue #6).
 	private static final int[] LIMIT_FRAMERATES_TARGET_FPS = new int[]{144, 60, 30};
-	public int getTargetFramrate() {
-	return LIMIT_FRAMERATES_TARGET_FPS[this.limitFramerate];
+	public int getTargetFramerate() {
+		return LIMIT_FRAMERATES_TARGET_FPS[this.limitFramerate];
 	}
 	public float musicVolume = 1.0F;
 	public float soundVolume = 1.0F;

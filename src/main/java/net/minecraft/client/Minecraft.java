@@ -131,6 +131,11 @@ public class Minecraft implements Runnable {
 	// Tracks when the previous rendered frame finished, used to pace the render
 	// loop to the target framerate instead of running it unbounded (see run()).
 	private long lastFrameTimeNanos = System.nanoTime();
+	// Set by changeWorld() when a texture refresh is needed; consumed at the top
+	// of run()'s main loop, which is a call site TeaVM's async compiler handles
+	// reliably (unlike changeWorld() itself, which is reached through code paths
+	// that don't always propagate async correctly).
+	private boolean pendingTextureRefresh = false;
 	private int joinPlayerCounter = 0;
 	
 	public static int debugFPS;
@@ -347,6 +352,13 @@ public class Minecraft implements Runnable {
 
 			while(this.running) {
 				try {
+					if(this.pendingTextureRefresh) {
+						this.pendingTextureRefresh = false;
+						if(this.renderEngine != null) {
+							this.renderEngine.refreshTextures();
+						}
+					}
+
 					AxisAlignedBB.clearBoundingBoxPool();
 					Vec3D.initialize();
 
@@ -1100,15 +1112,14 @@ public class Minecraft implements Runnable {
 				var1.saveWorldIndirectly(this.loadingScreen);
 			}
 
-			// Fix for textures rendering black on the first world join: the very first
-			// GPU texture upload can lose a race against the async PNG decode/upload
-			// path (see RenderEngine/GL11#loadPNG0) on a cold page load. Re-running the
-			// exact same texture upload pass that a manual page refresh + rejoin
-			// triggers (RenderEngine#refreshTextures) once the world/render state is
-			// ready reliably resolves it without requiring the user to reload the page.
-			if(this.renderEngine != null) {
-				this.renderEngine.refreshTextures();
-			}
+			// Fix for textures rendering black/invisible on the first world join (see
+			// run() for where this flag is actually consumed). We do NOT call
+			// renderEngine.refreshTextures() directly here: that call is async (it
+			// re-decodes PNGs), and changeWorld() can be reached through call paths
+			// TeaVM's async compiler doesn't reliably trace, which left the terrain
+			// texture unbound instead of properly reloaded. Deferring the actual
+			// refresh to the top of the main loop avoids that.
+			this.pendingTextureRefresh = true;
 
 			this.renderViewEntity = this.thePlayer;
 		} else {
