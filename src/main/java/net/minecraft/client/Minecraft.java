@@ -1080,6 +1080,16 @@ public class Minecraft implements Runnable {
 				var1.saveWorldIndirectly(this.loadingScreen);
 			}
 
+			// Fix for textures rendering black on the first world join: the very first
+			// GPU texture upload can lose a race against the async PNG decode/upload
+			// path (see RenderEngine/GL11#loadPNG0) on a cold page load. Re-running the
+			// exact same texture upload pass that a manual page refresh + rejoin
+			// triggers (RenderEngine#refreshTextures) once the world/render state is
+			// ready reliably resolves it without requiring the user to reload the page.
+			if(this.renderEngine != null) {
+				this.renderEngine.refreshTextures();
+			}
+
 			this.renderViewEntity = this.thePlayer;
 		} else {
 			this.thePlayer = null;
