@@ -128,14 +128,6 @@ public class Minecraft implements Runnable {
 	private int mouseTicksRan = 0;
 	public boolean isRaining = false;
 	long systemTime = System.currentTimeMillis();
-	// Tracks when the previous rendered frame finished, used to pace the render
-	// loop to the target framerate instead of running it unbounded (see run()).
-	private long lastFrameTimeNanos = System.nanoTime();
-	// Set by changeWorld() when a texture refresh is needed; consumed at the top
-	// of run()'s main loop, which is a call site TeaVM's async compiler handles
-	// reliably (unlike changeWorld() itself, which is reached through code paths
-	// that don't always propagate async correctly).
-	private boolean pendingTextureRefresh = false;
 	private int joinPlayerCounter = 0;
 	
 	public static int debugFPS;
@@ -352,13 +344,6 @@ public class Minecraft implements Runnable {
 
 			while(this.running) {
 				try {
-					if(this.pendingTextureRefresh) {
-						this.pendingTextureRefresh = false;
-						if(this.renderEngine != null) {
-							this.renderEngine.refreshTextures();
-						}
-					}
-
 					AxisAlignedBB.clearBoundingBoxPool();
 					Vec3D.initialize();
 
@@ -432,23 +417,6 @@ public class Minecraft implements Runnable {
 					this.checkGLError("Post render");
 					GL11.optimize();
 					++var3;
-
-					// Real FPS limiter: without this, the render loop below has nothing
-					// pacing it (no requestAnimationFrame, no vsync), so it spins as fast
-					// as the browser will schedule it and pegs the tab's CPU core, which
-					// starves the browser's own event loop and causes stutter/input lag.
-					// This is the "lag fix" modern Eaglercraft forks apply, and it also
-					// makes the previously-decorative framerate limit option actually work.
-					long targetFrameNanos = 1_000_000_000L / (long)this.gameSettings.getTargetFramerate();
-					long nowNanos = System.nanoTime();
-					long remainingMillis = (targetFrameNanos - (nowNanos - this.lastFrameTimeNanos)) / 1_000_000L;
-					if(remainingMillis > 0L) {
-						try {
-							Thread.sleep(remainingMillis);
-						} catch (InterruptedException ignored) {
-						}
-					}
-					this.lastFrameTimeNanos = System.nanoTime();
 
 					for(this.isGamePaused = !this.isMultiplayerWorld() && this.currentScreen != null && this.currentScreen.doesGuiPauseGame(); System.currentTimeMillis() >= var1 + 1000L; var3 = 0) {
 						this.debug = var3 + " fps, " + WorldRenderer.chunksUpdated + " chunk updates";
@@ -1111,15 +1079,6 @@ public class Minecraft implements Runnable {
 			if(var1.isNewWorld) {
 				var1.saveWorldIndirectly(this.loadingScreen);
 			}
-
-			// Fix for textures rendering black/invisible on the first world join (see
-			// run() for where this flag is actually consumed). We do NOT call
-			// renderEngine.refreshTextures() directly here: that call is async (it
-			// re-decodes PNGs), and changeWorld() can be reached through call paths
-			// TeaVM's async compiler doesn't reliably trace, which left the terrain
-			// texture unbound instead of properly reloaded. Deferring the actual
-			// refresh to the top of the main loop avoids that.
-			this.pendingTextureRefresh = true;
 
 			this.renderViewEntity = this.thePlayer;
 		} else {
