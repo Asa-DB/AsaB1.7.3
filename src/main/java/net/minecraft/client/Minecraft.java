@@ -128,6 +128,9 @@ public class Minecraft implements Runnable {
 	private int mouseTicksRan = 0;
 	public boolean isRaining = false;
 	long systemTime = System.currentTimeMillis();
+	// Tracks when the previous rendered frame finished, used to pace the render
+	// loop to the target framerate instead of running it unbounded (see run()).
+	private long lastFrameTimeNanos = System.nanoTime();
 	private int joinPlayerCounter = 0;
 	
 	public static int debugFPS;
@@ -417,6 +420,23 @@ public class Minecraft implements Runnable {
 					this.checkGLError("Post render");
 					GL11.optimize();
 					++var3;
+
+					// Real FPS limiter: without this, the render loop below has nothing
+					// pacing it (no requestAnimationFrame, no vsync), so it spins as fast
+					// as the browser will schedule it and pegs the tab's CPU core, which
+					// starves the browser's own event loop and causes stutter/input lag.
+					// This is the "lag fix" modern Eaglercraft forks apply, and it also
+					// makes the previously-decorative framerate limit option actually work.
+					long targetFrameNanos = 1_000_000_000L / (long)this.gameSettings.getTargetFramerate();
+					long nowNanos = System.nanoTime();
+					long remainingMillis = (targetFrameNanos - (nowNanos - this.lastFrameTimeNanos)) / 1_000_000L;
+					if(remainingMillis > 0L) {
+						try {
+							Thread.sleep(remainingMillis);
+						} catch (InterruptedException ignored) {
+						}
+					}
+					this.lastFrameTimeNanos = System.nanoTime();
 
 					for(this.isGamePaused = !this.isMultiplayerWorld() && this.currentScreen != null && this.currentScreen.doesGuiPauseGame(); System.currentTimeMillis() >= var1 + 1000L; var3 = 0) {
 						this.debug = var3 + " fps, " + WorldRenderer.chunksUpdated + " chunk updates";

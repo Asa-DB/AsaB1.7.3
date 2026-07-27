@@ -16,6 +16,10 @@ public class GameSettings {
 	private static final String[] DIFFICULTIES = new String[]{"options.difficulty.peaceful", "options.difficulty.easy", "options.difficulty.normal", "options.difficulty.hard"};
 	private static final String[] GUISCALES = new String[]{"options.guiScale.auto", "options.guiScale.small", "options.guiScale.normal", "options.guiScale.large"};
 	private static final String[] LIMIT_FRAMERATES = new String[]{"performance.max", "performance.balanced", "performance.powersaver"};
+	private static final int[] LIMIT_FRAMERATES_TARGET_FPS = new int[]{144, 60, 30};
+	public int getTargetFramrate() {
+	return LIMIT_FRAMERATES_TARGET_FPS[this.limitFramerate];
+	}
 	public float musicVolume = 1.0F;
 	public float soundVolume = 1.0F;
 	public float mouseSensitivity = 0.5F;
